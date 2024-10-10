@@ -15,71 +15,80 @@ struct ContentView: View {
         sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
         animation: .default)
     private var items: FetchedResults<Item>
+    
+    // save search keyword
+    @State private var searchText: String = ""
 
     var body: some View {
         NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
-                    }
+            VStack {
+                Spacer()
+                // searchbar
+
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.gray)
+                    TextField("Search by location...", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                    Spacer()
+                    Image(systemName: "mic.fill")
+                        .foregroundColor(.green)
                 }
-                .onDelete(perform: deleteItems)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(25)
+                .padding(.horizontal)
             }
+            .navigationBarTitle("Utech Navigation App", displayMode: .inline)
             .toolbar {
+                // icon in a column
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                    VStack(spacing: 15) { // space from top
+                        Spacer().frame(height: 150)
+                        Button(action: {
+                            //
+                        }) {
+                            IconWithBackground(systemName: "person.crop.circle", backgroundColor: .green)
+                        }
+
+                        Button(action: {
+                            // 下载图标功能
+                        }) {
+                            IconWithBackground(systemName: "arrow.down.circle", backgroundColor: .white)
+                        }
                     }
                 }
             }
-            Text("Select an item")
+            .background(
+                Color.clear // transparent color background
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        hideKeyboard()
+                    }
+            )
         }
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
+    
+    // 自定义图标按钮样式
+    struct IconWithBackground: View {
+        var systemName: String
+        var backgroundColor: Color
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
+        var body: some View {
+            Image(systemName: systemName)
+                .font(.system(size: 24))
+                .foregroundColor(backgroundColor == .white ? .green : .white)
+                .padding()
+                .background(backgroundColor)
+                .clipShape(Circle())
+                .shadow(radius: 4)
         }
     }
 }
-
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
 
 #Preview {
     ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
