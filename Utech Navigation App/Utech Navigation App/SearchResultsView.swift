@@ -8,14 +8,21 @@
 import SwiftUI
 
 struct SearchResultsView: View {
+    @State private var searchText: String = ""
+    @FocusState private var isTextFieldFocused: Bool // cotrol the focus state of text field
+    
     var body: some View {
         VStack(alignment: .leading) {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.gray)
-                Text("Search by location...")
+                TextField("Search by location...", text: $searchText)
                     .foregroundColor(.gray)
+                    .focused($isTextFieldFocused)  // 聚焦输入框
+                                    .onAppear {
+                                        isTextFieldFocused = true  // 视图出现时自动聚焦
+                                    }
                 Spacer()
                 Image(systemName: "mic.fill")
                     .foregroundColor(.green)

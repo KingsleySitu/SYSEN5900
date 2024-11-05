@@ -12,8 +12,7 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
     // save search keyword
-    @State private var searchText: String = ""
-    @State private var showSearchResults: Bool = false
+    @State private var isSearching: Bool = false
 
     var body: some View {
         NavigationView {
@@ -25,50 +24,70 @@ struct ContentView: View {
                 
                 VStack {
                     Spacer()
-                    
                     // searchbar
-                    Button(action: {
-                        showSearchResults = true
-                    }) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.gray)
-                            Text("Search by location...")
-                                .foregroundColor(.gray)
-                            Spacer()
-                            Image(systemName: "mic.fill")
-                                .foregroundColor(.green)
-                        }
-                        .padding()
-                        .background(Color(.systemGray6).opacity(0.8))
-                        .cornerRadius(25)
-                        .padding(.horizontal)
-                        .padding(.bottom, 50)
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.gray)
+                        Text("Search by location...")
+                            .foregroundColor(.gray)
+                            .onTapGesture {
+                                isSearching = true
+                            }
+                        Spacer()
+                        Image(systemName: "mic.fill")
+                            .foregroundColor(.green)
                     }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(25)
+                    .padding(.horizontal)
+                    .padding(.bottom, 50)
                 }
             }
-            .sheet(isPresented: $showSearchResults) {
-                SearchResultsView() // refer to SearchResultsView
+            .sheet(isPresented: $isSearching) {
+                // refer to SearchResultsView
+                SearchResultsView()
             }
             .toolbar {
-                // icon in a column
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    VStack(spacing: 15) { // space from top
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    VStack(spacing: 20) {
                         Spacer().frame(height: 150)
                         Button(action: {
-                            //
+                            print("Settings tapped")
                         }) {
-                            IconWithBackground(systemName: "person.crop.circle", backgroundColor: .green)
+                            Image(systemName: "gearshape.fill")
+                                .foregroundColor(.green)
+                                .padding(8)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
                         }
-
+                        
                         Button(action: {
-                            // 下载图标功能
+                            print("Download tapped")
                         }) {
-                            IconWithBackground(systemName: "arrow.down.circle", backgroundColor: .white)
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(.green)
+                                .padding(8)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
+                        }
+                        
+                        Button(action: {
+                            print("Map tapped")
+                        }) {
+                            Image(systemName: "map.fill")
+                                .foregroundColor(.green)
+                                .padding(8)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
                         }
                     }
                 }
             }
+    
             .background(
                 Color.clear // transparent color background
                     .contentShape(Rectangle())
