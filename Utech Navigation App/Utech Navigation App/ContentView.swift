@@ -10,36 +10,46 @@ import CoreData
 
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
     
     // save search keyword
     @State private var searchText: String = ""
+    @State private var showSearchResults: Bool = false
 
     var body: some View {
         NavigationView {
-            VStack {
-                Spacer()
-                // searchbar
-
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.gray)
-                    TextField("Search by location...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
+            ZStack {
+                Image("backgroundImage")
+                    .resizable()
+                    .scaledToFill()
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack {
                     Spacer()
-                    Image(systemName: "mic.fill")
-                        .foregroundColor(.green)
+                    
+                    // searchbar
+                    Button(action: {
+                        showSearchResults = true
+                    }) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.gray)
+                            Text("Search by location...")
+                                .foregroundColor(.gray)
+                            Spacer()
+                            Image(systemName: "mic.fill")
+                                .foregroundColor(.green)
+                        }
+                        .padding()
+                        .background(Color(.systemGray6).opacity(0.8))
+                        .cornerRadius(25)
+                        .padding(.horizontal)
+                        .padding(.bottom, 50)
+                    }
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(25)
-                .padding(.horizontal)
             }
-            .navigationBarTitle("Utech Navigation App", displayMode: .inline)
+            .sheet(isPresented: $showSearchResults) {
+                SearchResultsView() // refer to SearchResultsView
+            }
             .toolbar {
                 // icon in a column
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -62,15 +72,8 @@ struct ContentView: View {
             .background(
                 Color.clear // transparent color background
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        hideKeyboard()
-                    }
             )
         }
-    }
-    
-    private func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     // 自定义图标按钮样式
@@ -80,7 +83,7 @@ struct ContentView: View {
 
         var body: some View {
             Image(systemName: systemName)
-                .font(.system(size: 24))
+                .font(.system(size: 15))
                 .foregroundColor(backgroundColor == .white ? .green : .white)
                 .padding()
                 .background(backgroundColor)
