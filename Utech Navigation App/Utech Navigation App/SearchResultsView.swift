@@ -37,9 +37,8 @@ struct SearchResultsView: View {
                 .font(.headline)
                 .padding(.horizontal)
             VStack(alignment: .leading, spacing: 8) {
-                LocationRow(iconName: "house.fill", title: "Home", address: "131 Blair St, Ithaca, NY")
+                LocationRow(iconName: "house.fill", title: "Home", address: "120 Valentine Pl, Ithaca, NY")
                 LocationRow(iconName: "briefcase.fill", title: "Work", address: "Warren Hall, Reservoir Avenue, Ithaca, NY")
-                LocationRow(iconName: "cart.fill", title: "Grocery Store", address: "135 Fairgrounds Memorial Pkwy, Ithaca, NY")
             }
             .padding(.horizontal)
 
