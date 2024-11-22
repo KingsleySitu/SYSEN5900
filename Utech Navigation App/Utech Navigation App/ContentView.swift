@@ -9,229 +9,201 @@ import SwiftUI
 import MapKit
 
 struct ContentView: View {
-    @State private var cameraPosition: MapCameraPosition = .automatic
-    @State private var visibleRegion: MKCoordinateRegion?
-    @State private var isSearching: Bool = false
-    @State private var isAirQualityMap: Bool = false // New state to track map type
+    // MARK: - Properties
     
-    private let initialRegion: MKCoordinateRegion = {
-        let center = CLLocationCoordinate2D(latitude: 42.441624, longitude: -76.484693)
-        let span = MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
-        return MKCoordinateRegion(center: center, span: span)
-    }()
+    // Location manager to handle user's location
+    @StateObject private var locationManager = LocationManager()
+    
+    // Map camera position state
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    
+    // Visible region on the map
+    @State private var visibleRegion: MKCoordinateRegion?
+    
+    // Search view presentation state
+    @State private var isSearching: Bool = false
+    
+    // Map type toggle state
+    @State private var isAirQualityMap: Bool = false
+    
+    // Loading screen state
+    @State private var isShowingLoadingScreen = true
+    
+    // MARK: - Body
     
     var body: some View {
         ZStack {
-            Map(position: $cameraPosition) {
-                Annotation("", coordinate: CLLocationCoordinate2D(latitude: 42.441624, longitude: -76.484693)) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.2))
-                            .frame(width: 40, height: 40)
-                        
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 16, height: 16)
-                        
-                        Circle()
-                            .stroke(Color.white, lineWidth: 3)
-                            .frame(width: 16, height: 16)
-                    }
-                }
+            // Main map content
+            if locationManager.isLocationReady {
+                // Main map view
+                mapView
+                    .opacity(isShowingLoadingScreen ? 0 : 1) // Fade in map when loading completes
+                    .animation(.easeInOut(duration: 0.5), value: isShowingLoadingScreen)
                 
-                Marker(
-                    "Home",
-                    coordinate: CLLocationCoordinate2D(latitude: 42.435782, longitude: -76.486605)
-                )
-            }
-            .mapStyle(isAirQualityMap ? .imagery : .standard) // Toggle between map styles
-            .onMapCameraChange(frequency: .onEnd) { context in
-                visibleRegion = context.region
-            }
-            .onAppear {
-                cameraPosition = .region(initialRegion)
+                // Overlay controls
+                controlsOverlay
+                    .opacity(isShowingLoadingScreen ? 0 : 1) // Fade in controls when loading completes
+                    .animation(.easeInOut(duration: 0.5).delay(0.3), value: isShowingLoadingScreen) // Slight delay for controls
             }
             
-            VStack {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 20) {
-                        Button(action: {
-                            print("Settings tapped")
-                        }) {
-                            Image(systemName: "gearshape.fill")
-                                .foregroundColor(.green)
-                                .padding(10)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
-                        
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 1.0)) {
-                                cameraPosition = .region(initialRegion)
-                            }
-                        }) {
-                            Image(systemName: "location.fill")
-                                .foregroundColor(.green)
-                                .padding(10)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
-                        
-                        // Modified map button to toggle between map types
-                        Button(action: {
-                            withAnimation {
-                                isAirQualityMap.toggle()
-                            }
-                        }) {
-                            Image(systemName: isAirQualityMap ? "aqi.high" : "map.fill")
-                                .foregroundColor(.green)
-                                .padding(10)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
+            // Loading screen overlay with transition
+            if isShowingLoadingScreen {
+                LoadingView {
+                    // Callback when loading animation completes
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        isShowingLoadingScreen = false
                     }
-                    .padding(.top, 80)
-                    .padding(.trailing, 20)
                 }
-                
-                Spacer()
-                
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.gray)
-                    Text("Search by location...")
-                        .foregroundColor(.gray)
-                        .onTapGesture {
-                            isSearching = true
-                        }
-                    Spacer()
-                    Image(systemName: "mic.fill")
-                        .foregroundColor(.green)
-                }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(25)
-                .shadow(color: .gray.opacity(0.4), radius: 5, x: 0, y: 2)
-                .padding(.horizontal)
-                .padding(.bottom, 50)
+                .transition(.opacity)
             }
         }
+        // Present search sheet when isSearching is true
         .sheet(isPresented: $isSearching) {
             SearchResultsView()
         }
         .edgesIgnoringSafeArea(.all)
     }
+    
+    // MARK: - Map View
+    
+    private var mapView: some View {
+        Map(position: $cameraPosition) {
+            // Add user's location annotation if available
+            if let userLocation = locationManager.userLocation {
+                Annotation("", coordinate: userLocation.coordinate) {
+                    locationAnnotation
+                }
+            }
+        }
+        .mapControls {
+            MapCompass()
+            MapUserLocationButton()
+        }
+        // Set map style based on isAirQualityMap flag
+        .mapStyle(isAirQualityMap ? .imagery : .standard)
+        // Track map camera changes
+        .onMapCameraChange(frequency: .onEnd) { context in
+            visibleRegion = context.region
+        }
+        // Set initial camera position
+        .onAppear {
+            if let location = locationManager.userLocation {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+                ))
+            }
+        }
+    }
+    
+    // MARK: - Location Annotation
+    
+    private var locationAnnotation: some View {
+        ZStack {
+            // Outer translucent circle
+            Circle()
+                .fill(Color.blue.opacity(0.2))
+                .frame(width: 40, height: 40)
+            
+            // Inner solid circle
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 16, height: 16)
+            
+            // White stroke circle
+            Circle()
+                .stroke(Color.white, lineWidth: 3)
+                .frame(width: 16, height: 16)
+        }
+    }
+    
+    // MARK: - Controls Overlay
+    
+    private var controlsOverlay: some View {
+        VStack {
+            // Top controls
+            HStack {
+                Spacer()
+                VStack(spacing: 20) {
+                    // Settings button
+                    controlButton(
+                        icon: "gearshape.fill",
+                        action: { print("Settings tapped") }
+                    )
+                    
+                    // Location button
+                    controlButton(
+                        icon: "location.fill",
+                        action: centerMapOnUserLocation
+                    )
+                    
+                    // Map type toggle button
+                    controlButton(
+                        icon: isAirQualityMap ? "aqi.high" : "map.fill",
+                        action: { withAnimation { isAirQualityMap.toggle() } }
+                    )
+                }
+                .padding(.top, 80)
+                .padding(.trailing, 20)
+            }
+            
+            Spacer()
+            
+            // Search bar
+            searchBar
+        }
+    }
+    
+    // MARK: - Control Button
+    
+    private func controlButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .foregroundColor(.green)
+                .padding(10)
+                .background(Color.white)
+                .clipShape(Circle())
+                .shadow(radius: 5)
+        }
+    }
+    
+    // MARK: - Search Bar
+    
+    private var searchBar: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.gray)
+            Text("Search location...")
+                .foregroundColor(.gray)
+                .onTapGesture {
+                    isSearching = true
+                }
+            Spacer()
+            Image(systemName: "mic.fill")
+                .foregroundColor(.green)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(25)
+        .shadow(color: .gray.opacity(0.4), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
+        .padding(.bottom, 50)
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func centerMapOnUserLocation() {
+        if let location = locationManager.userLocation {
+            withAnimation(.easeInOut(duration: 1.0)) {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+                ))
+            }
+        }
+    }
 }
 
-
-//struct ContentView: View {
-//    @Environment(\.managedObjectContext) private var viewContext
-//    
-//    // save search keyword
-//    @State private var isSearching: Bool = false
-//
-//    var body: some View {
-//        NavigationView {
-//            ZStack {
-//                Image("backgroundImage")
-//                    .resizable()
-//                    .scaledToFill()
-//                    .edgesIgnoringSafeArea(.all)
-//                
-//                VStack {
-//                    Spacer()
-//                    // searchbar
-//                    HStack {
-//                        Image(systemName: "magnifyingglass")
-//                            .foregroundColor(.gray)
-//                        Text("Search by location...")
-//                            .foregroundColor(.gray)
-//                            .onTapGesture {
-//                                isSearching = true
-//                            }
-//                        Spacer()
-//                        Image(systemName: "mic.fill")
-//                            .foregroundColor(.green)
-//                    }
-//                    .padding()
-//                    .background(Color(.systemGray6))
-//                    .cornerRadius(25)
-//                    .padding(.horizontal)
-//                    .padding(.bottom, 50)
-//                }
-//            }
-//            .sheet(isPresented: $isSearching) {
-//                // refer to SearchResultsView
-//                SearchResultsView()
-//            }
-//            .toolbar {
-//                ToolbarItemGroup(placement: .navigationBarTrailing) {
-//                    VStack(spacing: 20) {
-//                        Spacer().frame(height: 150)
-//                        Button(action: {
-//                            print("Settings tapped")
-//                        }) {
-//                            Image(systemName: "gearshape.fill")
-//                                .foregroundColor(.green)
-//                                .padding(8)
-//                                .background(Color.white)
-//                                .clipShape(Circle())
-//                                .shadow(radius: 5)
-//                        }
-//                        
-//                        Button(action: {
-//                            print("Download tapped")
-//                        }) {
-//                            Image(systemName: "arrow.down.circle.fill")
-//                                .foregroundColor(.green)
-//                                .padding(8)
-//                                .background(Color.white)
-//                                .clipShape(Circle())
-//                                .shadow(radius: 5)
-//                        }
-//                        
-//                        Button(action: {
-//                            print("Map tapped")
-//                        }) {
-//                            Image(systemName: "map.fill")
-//                                .foregroundColor(.green)
-//                                .padding(8)
-//                                .background(Color.white)
-//                                .clipShape(Circle())
-//                                .shadow(radius: 5)
-//                        }
-//                    }
-//                }
-//            }
-//    
-//            .background(
-//                Color.clear // transparent color background
-//                    .contentShape(Rectangle())
-//            )
-//        }
-//    }
-//    
-//    // 自定义图标按钮样式
-//    struct IconWithBackground: View {
-//        var systemName: String
-//        var backgroundColor: Color
-//
-//        var body: some View {
-//            Image(systemName: systemName)
-//                .font(.system(size: 15))
-//                .foregroundColor(backgroundColor == .white ? .green : .white)
-//                .padding()
-//                .background(backgroundColor)
-//                .clipShape(Circle())
-//                .shadow(radius: 4)
-//        }
-//    }
-//}
-
 #Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    ContentView()
 }
