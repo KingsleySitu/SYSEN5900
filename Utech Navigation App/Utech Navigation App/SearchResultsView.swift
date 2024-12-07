@@ -1,5 +1,5 @@
 //
-//  Untitled.swift
+//  SearchResultsView.swift
 //  Utech Navigation App
 //
 //  Created by Kingsley Situ on 10/31/24.
@@ -11,26 +11,32 @@ import MapKit
 struct SearchResultsView: View {
     @State private var searchText: String = ""
     @FocusState private var isTextFieldFocused: Bool
-    @State private var searchResults: [MKMapItem] = [] // 动态搜索结果
+    @State private var searchResults: [MKMapItem] = [] // Dynamic search results array
     
-    var onSelectLocation: (CLLocationCoordinate2D, String) -> Void // 回调传递坐标和地址
+    // Callback to pass coordinate, name, city, and state back to the parent view
+    var onSelectLocation: (CLLocationCoordinate2D, String, String, String) -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
-            // 搜索栏
+            // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.gray)
+                
                 TextField("Search by location...", text: $searchText)
                     .foregroundColor(.gray)
                     .focused($isTextFieldFocused)
                     .onAppear {
-                        isTextFieldFocused = true // 自动聚焦
+                        // Auto-focus the search text field
+                        isTextFieldFocused = true
                     }
                     .onChange(of: searchText) { newValue in
-                        performSearch(query: newValue) // 触发搜索
+                        // Trigger new search whenever the user updates the query
+                        performSearch(query: newValue)
                     }
+                
                 Spacer()
+                
                 Image(systemName: "mic.fill")
                     .foregroundColor(.green)
             }
@@ -39,24 +45,26 @@ struct SearchResultsView: View {
             .cornerRadius(25)
             .padding()
 
-            // 动态内容显示：搜索结果或默认信息
+            // Display either default info (if search is empty) or search results
             if searchText.isEmpty {
-                // 显示默认信息
+                // Default info: Saved and Recent locations
                 VStack(alignment: .leading) {
-                    // 已保存的位置
+                    // Saved locations
                     Text("Saved")
                         .font(.headline)
                         .padding(.horizontal)
+                    
                     VStack(alignment: .leading, spacing: 8) {
                         LocationRow(iconName: "house.fill", title: "Home", address: "120 Valentine Pl, Ithaca, NY")
                         LocationRow(iconName: "briefcase.fill", title: "Work", address: "Warren Hall, Reservoir Avenue, Ithaca, NY")
                     }
                     .padding(.horizontal)
 
-                    // 最近访问的位置
+                    // Recent locations
                     Text("Recent")
                         .font(.headline)
                         .padding(.horizontal)
+                    
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(0..<10) { _ in
@@ -67,13 +75,18 @@ struct SearchResultsView: View {
                     }
                 }
             } else {
-                // 显示动态搜索结果
+                // Display dynamic search results
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(searchResults, id: \.self) { item in
                             Button(action: {
                                 let coordinate = item.placemark.coordinate
-                                onSelectLocation(coordinate, item.name ?? "Unknown Address")
+                                let name = item.name ?? "Unknown Address"
+                                let city = item.placemark.locality ?? ""
+                                let state = item.placemark.administrativeArea ?? ""
+                                
+                                // Pass selected location info back
+                                onSelectLocation(coordinate, name, city, state)
                             }) {
                                 LocationRow(
                                     iconName: "mappin.and.ellipse",
@@ -92,14 +105,16 @@ struct SearchResultsView: View {
         .cornerRadius(15)
     }
 
-    // 使用 MKLocalSearch 实现搜索
+    // Perform search using MKLocalSearch
     private func performSearch(query: String) {
         guard !query.isEmpty else {
             searchResults = []
             return
         }
+        
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
+        
         let search = MKLocalSearch(request: request)
         search.start { response, error in
             if let items = response?.mapItems {
