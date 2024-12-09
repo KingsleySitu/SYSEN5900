@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var currentMarkerCity: String = ""        // City of current marker
     @State private var currentMarkerState: String = ""       // State of current marker
     @State private var routePolyline: MKPolyline? = nil // Store the calculated route
+    @State private var isShowingSettings: Bool = false
     
     // Current marker information: coordinate and title
     @State private var currentMarker: (coordinate: CLLocationCoordinate2D, title: String)? = nil
@@ -401,7 +402,7 @@ struct ContentView: View {
                 VStack(spacing: 20) {
                     controlButton(
                         icon: "gearshape.fill",
-                        action: { print("Settings tapped") }
+                        action: { isShowingSettings = true }
                     )
                     controlButton(
                         icon: "location.fill",
@@ -425,6 +426,9 @@ struct ContentView: View {
             
             // Bottom search bar
             searchBar
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView()
         }
     }
     
