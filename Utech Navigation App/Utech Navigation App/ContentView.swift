@@ -10,13 +10,15 @@ import MapKit
 
 struct ContentView: View {
     // MARK: - Properties
-    
+    let routeCalculator = RouteCalculator()
+    @State private var routeDetails: (distance: String, travelTime: String)? = nil
     @State private var selectedTransportMode: String = "car" // Default selected transport mode
     @State private var isDirectionsMode: Bool = false        // Controls directions mode in bottom sheet
     @State private var isShowingBottomSheet: Bool = false    // Controls bottom sheet visibility
     @State private var currentMarkerDetails: String? = nil   // Marker AQI details from API
     @State private var currentMarkerCity: String = ""        // City of current marker
     @State private var currentMarkerState: String = ""       // State of current marker
+    @State private var routePolyline: MKPolyline? = nil // Store the calculated route
     
     // Current marker information: coordinate and title
     @State private var currentMarker: (coordinate: CLLocationCoordinate2D, title: String)? = nil
@@ -52,40 +54,48 @@ struct ContentView: View {
                     mapView
                         .opacity(isShowingLoadingScreen ? 0 : 1)
                         .animation(.easeInOut(duration: 0.5), value: isShowingLoadingScreen)
-                    
-                    // Overlay controls
-                    controlsOverlay
-                        .opacity(isShowingLoadingScreen ? 0 : 1)
-                        .animation(.easeInOut(duration: 0.5).delay(0.3), value: isShowingLoadingScreen)
                 }
-                
+
+                // Green overlay for air quality mode
+                if mapViewMode == .airQuality {
+                    Rectangle()
+                        .fill(Color.green.opacity(0.3)) // Semi-transparent green overlay
+                        .allowsHitTesting(false)       // Allow touch events to pass through
+                        .edgesIgnoringSafeArea(.all)   // Cover the entire screen
+                }
+
+                // Overlay controls (e.g., right-side buttons)
+                controlsOverlay
+                    .opacity(isShowingLoadingScreen ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.5).delay(0.3), value: isShowingLoadingScreen)
+
+                // AQI Reference Bar
                 if mapViewMode == .airQuality {
                     HStack {
                         VStack {
                             Spacer()
-                                .frame(height: 20) // Adjust height to align with the right-side buttons
+                                .frame(height: 10) // Adjust height to align with the right-side buttons
                             AQIReferenceBar()
                                 .frame(height: 300) // Set a reasonable height for the bar
-                                .padding(.leading, 10) // Distance from the left edge
+                                .padding(.leading, 25) // Distance from the left edge
                             Spacer()
                         }
                         Spacer() // Push other elements to the right
                     }
                 }
-                
+
                 // Bottom sheet
                 VStack {
                     Spacer()
                     if isShowingBottomSheet {
                         bottomSheet
                             .onTapGesture {
-                                // Tap to close bottom sheet
                                 isShowingBottomSheet = false
                             }
                     }
                 }
                 .edgesIgnoringSafeArea(.bottom)
-                
+
                 // Loading overlay
                 if isShowingLoadingScreen {
                     LoadingView {
@@ -149,37 +159,44 @@ struct ContentView: View {
     // MARK: - Map View
     
     private var mapView: some View {
-        Map(position: $cameraPosition) {
-            // User location annotation
-            if let userLocation = locationManager.userLocation {
-                Annotation("", coordinate: userLocation.coordinate) {
-                    locationAnnotation
+        ZStack {
+            Map(position: $cameraPosition) {
+                // User location annotation
+                if let userLocation = locationManager.userLocation {
+                    Annotation("", coordinate: userLocation.coordinate) {
+                        locationAnnotation
+                    }
+                }
+                
+                // Current marker annotation
+                if let marker = currentMarker {
+                    Annotation(marker.title, coordinate: marker.coordinate) {
+                        markerAnnotation()
+                    }
                 }
             }
-            
-            // Current marker annotation
-            if let marker = currentMarker {
-                Annotation(marker.title, coordinate: marker.coordinate) {
-                    markerAnnotation()
-                }
+            .mapControls {
+                MapCompass()
             }
-        }
-        .mapControls {
-            MapCompass()
-        }
-        .mapStyle(
-            mapViewMode == .satellite ? .imagery :
-            mapViewMode == .airQuality ? .standard : .standard // Placeholder for air quality mode
-        )
-        .onAppear {
-            // Initialize camera to user location if available
-            if let location = locationManager.userLocation {
-                cameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: location.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+            .mapStyle(
+                mapViewMode == .satellite ? .imagery :
+                mapViewMode == .airQuality ? .standard : .standard
+            )
+            .onAppear {
+                if let location = locationManager.userLocation {
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+                        )
                     )
-                )
+                }
+            }
+
+            // Add MapOverlay for route polyline
+            if let polyline = routePolyline {
+                MapOverlay(polyline: polyline)
+                    .edgesIgnoringSafeArea(.all)
             }
         }
     }
@@ -250,7 +267,7 @@ struct ContentView: View {
         )
         .frame(maxHeight: UIScreen.main.bounds.height * 0.35) // Adjust the max height of the bottom sheet
         .padding(.horizontal) // Add horizontal padding for the sheet
-        .padding(.bottom, 50) // Reduce bottom padding to make it more compact
+        .padding(.bottom, 40) // Reduce bottom padding to make it more compact
         .transition(.move(edge: .bottom)) // Transition animation when the sheet appears
         .animation(.easeInOut(duration: 0.3), value: isShowingBottomSheet)
     }
@@ -272,10 +289,10 @@ struct ContentView: View {
             
             Divider()
             
-            // Toggle to directions mode
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isDirectionsMode = true
+                    calculateRoute() // Trigger route calculation immediately when entering directions mode
                 }
             }) {
                 HStack {
@@ -313,6 +330,7 @@ struct ContentView: View {
                 ForEach(["car", "figure.walk", "bus", "tram", "bicycle"], id: \.self) { mode in
                     Button(action: {
                         selectedTransportMode = mode
+                        calculateRoute()
                     }) {
                         Image(systemName: mode)
                             .foregroundColor(selectedTransportMode == mode ? .green : .gray)
@@ -332,13 +350,19 @@ struct ContentView: View {
             
             // Route details placeholder
             VStack(alignment: .leading, spacing: 5) {
-                Text("35 min (3.5 mi)")
-                    .font(.headline)
-                    .foregroundColor(.green)
-                
-                Text("High traffic • No tolls")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                if let details = routeDetails {
+                    Text("\(details.travelTime) (\(details.distance))")
+                        .font(.headline)
+                        .foregroundColor(.green)
+                    
+                    Text("Estimated travel time and distance")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                } else {
+                    Text("Calculating route...")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
             }
             
             Divider()
@@ -361,6 +385,10 @@ struct ContentView: View {
             }
         }
         .padding()
+        .onAppear {
+            // Automatically calculate route on appear
+            calculateRoute()
+        }
     }
     
     // MARK: - Controls Overlay
@@ -454,12 +482,39 @@ struct ContentView: View {
     private func centerMapOnUserLocation() {
         if let location = locationManager.userLocation {
             withAnimation(.easeInOut(duration: 1.0)) {
+                // Reset camera position to user's location
                 cameraPosition = .region(
                     MKCoordinateRegion(
                         center: location.coordinate,
                         span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
                     )
                 )
+                // Clear navigation-related data
+                routePolyline = nil // Clear the polyline
+                routeDetails = nil  // Reset route details
+                isDirectionsMode = false // Exit navigation mode
+            }
+        }
+    }
+    
+    private func calculateRoute() {
+        guard let source = locationManager.userLocation?.coordinate,
+              let destination = currentMarker?.coordinate else {
+            print("Source or destination is not available")
+            return
+        }
+        
+        routeCalculator.calculateRoute(from: source, to: destination, transportMode: selectedTransportMode) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let details):
+                    routeDetails = (details.distance, details.travelTime)
+                    routePolyline = details.polyline // Store the route's polyline
+                case .failure(let error):
+                    routeDetails = nil
+                    routePolyline = nil
+                    print("Error calculating route: \(error)")
+                }
             }
         }
     }
